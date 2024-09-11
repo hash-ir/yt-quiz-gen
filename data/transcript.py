@@ -22,7 +22,7 @@ def get_video_id(url):
     return None
 
 
-def get_transcript(url, languages=("en",)):
+def get_video_transcript(url, languages=("en",)):
     """Retrieve transcript of a YouTube video.
 
     Note:
@@ -36,7 +36,11 @@ def get_transcript(url, languages=("en",)):
             'start', and 'duration' keys
     """
     video_id = get_video_id(url)
-    transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=languages)
+    try:
+        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=languages)
+    except Exception:
+        return None
+        
     return transcript
 
 
@@ -45,7 +49,7 @@ if __name__ == "__main__":
     languages = ("hi", "en")  # try to fetch in this order of languages
 
     try:
-        transcript = get_transcript(video_url, languages)
+        transcript = get_video_transcript(video_url, languages)
     except Exception as e:
         transcript = None
         print(e)
