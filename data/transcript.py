@@ -22,7 +22,7 @@ def get_video_id(url):
     return None
 
 
-def get_video_transcript(url, languages=("en",)):
+def get_video_transcript(url, languages=("en",), return_str=False):
     """Retrieve transcript of a YouTube video.
 
     Note:
@@ -32,14 +32,22 @@ def get_video_transcript(url, languages=("en",)):
         url (str): video url
 
     Returns:
-        list: list of dicts containing the 'text',
-            'start', and 'duration' keys
+        list or str: list of dicts containing the 'text',
+            'start', and 'duration' fields if return_str is False,
+            otherwise the 'text' field.
     """
-    video_id = get_video_id(url)
+    video_id = get_video_id(str(url))
     try:
         transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=languages)
     except Exception:
         return None
+
+    if return_str:
+        text = ""
+        for item in transcript:
+            text += item['text']
+        
+        return text
         
     return transcript
 
