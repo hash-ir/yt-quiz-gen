@@ -3,11 +3,9 @@ import json
 from typing import List
 
 import gradio as gr
-from llama_index.core.callbacks import TokenCountingHandler
 from llama_index.llms.nvidia import NVIDIA
 from llama_index.llms.huggingface import HuggingFaceLLM
-from llama_index.llms.groq import Groq 
-from transformers import AutoTokenizer
+from llama_index.llms.groq import Groq
 from pydantic import BaseModel, parse_obj_as
 
 from data.transcript import get_video_transcript
@@ -26,19 +24,19 @@ from data.transcript import get_video_transcript
 
 # fastest inference among all the llm inference APIs but
 # unfortunately, also comes with rate-limits. (see https://console.groq.com/docs/rate-limits)
-GROQ_API_KEY = os.environ['GROQ_API_KEY']
+GROQ_API_KEY = os.environ["GROQ_API_KEY"]
 llm = Groq(model="llama-3.1-8b-instant", api_key=GROQ_API_KEY)
 
-# use an associated tokenizer based on the llm above
-# to count the tokens of the prompt 
-tokenizer = AutoTokenizer.from_pretrained("ICTNLP/Llama-3.1-8B-Omni")
-token_counter = TokenCountingHandler(
-    tokenizer=tokenizer.encode
-)
+# initialize topics dictionary and gradio dropdown element
+# for storing the topics
+topics_dict = {}
+dropdown_options = []
+
 
 # Pydantic model for parsing output of llm
 class Topic(BaseModel):
     """Data model for a topic in a YouTube video"""
+
     name: str
     description: str
 
@@ -46,9 +44,11 @@ class Topic(BaseModel):
 def analyze_video(url):
     transcript = get_video_transcript(url, return_str=True)
     if not transcript:
-        return f"Unable to retrieve transcript for url: {url}"
+        raise ValueError(f"Unable to retrieve transcript for url: {url}")
 
-    print(f"Fetched transcript with {len(transcript)} characters, approx {len(transcript) // 4} tokens.")
+    print(
+        f"Fetched transcript with {len(transcript)} characters, approx {len(transcript) // 4} tokens."
+    )
 
     topic_extractor_prompt = f"""
     Given the transcript of a YouTube video tutorial:
@@ -90,61 +90,76 @@ def analyze_video(url):
     except ValueError:
         print("Error: The LLM output did not match the expected format.")
 
-    topics = list(topics_dict.keys())
-    print(topics)
+    return topics_dict
 
-    return topics, ""
-    # topics_out = f"""I have identified the following topics from the video: {topics}"""
 
-def generate_quiz(topic):
-    topic_desc = topics_dict[topic]
-    qa_prompt = f"""<context>{topic_desc}</context>
+def generate_quiz(topic: str, desc: str):
+    qa_prompt = f"""
+    Given the topic and description of a YouTube video transcript:
+    
+    {topic}
 
-    Focus on the topic of a YouTube video provided between the
-    <context><context> tags. You have to understand what this video was
-    about and then create multiple choice Q&A. The Q&A should be such 
-    that it will test the knowledge of human who has watched the video.
-    Keep in mind to use only the context to generate MCQs. Generate a set
-    of 5 questions"""
+    {desc}
 
-    qas = llm.complete(qa_prompt)
+    Understand the description and generate a multiple choice Q&A.
+    The Q&A should be such that it will test the knowledge of human 
+    who watched the YouTube video and particularly this segment/topic of the
+    video. Keep in mind to use only the description to generate MCQs. 
+    Generate a set of 5 questions."""
 
-    return qas
+    quiz = llm.complete(qa_prompt)
+
+    return quiz
+
 
 def create_interface():
     with gr.Blocks() as interface:
         gr.Markdown("# YouTube Quiz Generator")
 
-        url_input = gr.Textbox(label="YouTube Video URL")
-        analyze_button = gr.Button("Submit")
-        error_output = gr.Textbox(label="Status", visible=True)
+        with gr.Row():
+            url_input = gr.Textbox(label="YouTube Video URL")
+            analyze_button = gr.Button("Submit")
+            clear_button = gr.Button("Clear")
+
         topics_dropdown = gr.Dropdown(
-            label="Select a topic to start quizzing", 
-            choices=["Placeholder 1", "Placeholder 2"], 
+            label="Select a topic to start quizzing",
+            choices=["Placeholder 1", "Placeholder 2"],
             interactive=False,
-            allow_custom_value=True
         )
-        quiz_button = gr.Button("Start Quiz", interactive=False)
-        qa_output = gr.Textbox(label="Generated Q&A")
+        topic_selection_button = gr.Button("Start Quiz")
+
+        quiz_output = gr.Textbox(label="Generated Q&A")
+
+        def handle_url_submit(url_input):
+            global dropdown_options, topics_dict
+            topics_dict = analyze_video(url_input)
+            dropdown_options = list(topics_dict.keys())
+            return gr.update(
+                choices=dropdown_options, value=dropdown_options[0], interactive=True
+            )
+
+        def handle_dropdown_submit(dropdown_selection):
+            topic_desc = topics_dict[dropdown_selection]
+            quiz = generate_quiz(dropdown_selection, topic_desc)
+            return quiz
+
+        def clear_inputs():
+            global dropdown_options
+            dropdown_options = []
+            return "", gr.update(choices=[], interactive=False), ""
 
         analyze_button.click(
-            fn=analyze_video,
+            fn=handle_url_submit,
             inputs=url_input,
-            outputs=[topics_dropdown, error_output],
+            outputs=topics_dropdown,
         )
 
-        topics_dropdown.change(
-            lambda x: gr.Dropdown(choices=x, interactive=True, allow_custom_value=True), 
-            inputs=[topics_dropdown]
+        topic_selection_button.click(
+            fn=handle_dropdown_submit, inputs=topics_dropdown, outputs=quiz_output
         )
 
-        def on_quiz_click(topic):
-            return generate_quiz(topic)
-
-        quiz_button.click(
-            fn=on_quiz_click,
-            inputs=topics_dropdown,
-            outputs=qa_output
+        clear_button.click(
+            fn=clear_inputs, outputs=[url_input, topics_dropdown, quiz_output]
         )
 
     return interface
