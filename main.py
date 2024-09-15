@@ -82,12 +82,15 @@ def analyze_video(url):
     """
 
     response = llm.complete(topic_extractor_prompt)
+    print(response.text)
 
     global topics_dict
     try:
         response_text = response.text
-        formatted_json_response = response_text.split('json')[1][:-3]
-        json_response = json.loads(formatted_json_response)
+        formatted_json_response = response_text.split('json')
+        if len(formatted_json_response) > 1:
+            formatted_json_response = formatted_json_response[1]
+        json_response = json.loads(formatted_json_response[:-3])
         topics_list = parse_obj_as(List[Topic], json_response)
         topics_dict = {topic.name: topic.description for topic in topics_list}
     except json.JSONDecodeError:
