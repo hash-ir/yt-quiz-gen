@@ -7,6 +7,7 @@ from llama_index.llms.nvidia import NVIDIA
 from llama_index.llms.huggingface import HuggingFaceLLM
 from llama_index.llms.groq import Groq
 from pydantic import BaseModel, parse_obj_as
+from dotenv import load_dotenv
 
 from data.transcript import get_video_transcript
 
@@ -24,7 +25,9 @@ from data.transcript import get_video_transcript
 
 # fastest inference among all the llm inference APIs but
 # unfortunately, also comes with rate-limits. (see https://console.groq.com/docs/rate-limits)
-GROQ_API_KEY = os.environ["GROQ_API_KEY"]
+load_dotenv(override=True)
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+# GROQ_API_KEY = os.environ["GROQ_API_KEY"]
 llm = Groq(model="llama-3.1-8b-instant", api_key=GROQ_API_KEY)
 
 # initialize topics dictionary and gradio dropdown element
@@ -82,7 +85,9 @@ def analyze_video(url):
 
     global topics_dict
     try:
-        json_response = json.loads(response.text)
+        response_text = response.text
+        formatted_json_response = response_text.split('json')[1][:-3]
+        json_response = json.loads(formatted_json_response)
         topics_list = parse_obj_as(List[Topic], json_response)
         topics_dict = {topic.name: topic.description for topic in topics_list}
     except json.JSONDecodeError:
