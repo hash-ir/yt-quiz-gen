@@ -4,6 +4,7 @@ import gradio as gr
 from llama_index.llms.nvidia import NVIDIA
 from llama_index.llms.huggingface import HuggingFaceLLM
 from llama_index.llms.groq import Groq
+from dotenv import load_dotenv
 
 from quiz.topics import extract_topics
 from quiz.generator import generate_quiz
@@ -11,7 +12,9 @@ from quiz.evaluator import change_difficulty
 
 # fastest inference among all the llm inference APIs but
 # unfortunately, also comes with rate-limits. (see https://console.groq.com/docs/rate-limits)
-GROQ_API_KEY = os.environ["GROQ_API_KEY"]
+load_dotenv(override=True)
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+# GROQ_API_KEY = os.environ["GROQ_API_KEY"]
 llm = Groq(model="llama-3.1-8b-instant", api_key=GROQ_API_KEY)
 
 # initialize topics dictionary and gradio dropdown element
