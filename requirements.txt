@@ -1,8 +1,5 @@
 gradio==4.44.0
-llama_index==0.11.8
+llama_index==0.11.11
+pydantic==2.9.2
+python-dotenv==1.0.1
 youtube_transcript_api==0.6.2
-llama-index-llms-huggingface==0.3.3
-llama-index-llms-huggingface-api==0.2.0
-llama-index-llms-nvidia==0.2.4)
-llama-index-embeddings-nvidia==0.2.2
-llama-index-readers-file==0.2.1
