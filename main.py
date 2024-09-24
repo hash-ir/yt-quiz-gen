@@ -5,7 +5,7 @@ from llama_index.llms.nvidia import NVIDIA
 from llama_index.llms.huggingface import HuggingFaceLLM
 from llama_index.llms.groq import Groq
 from dotenv import load_dotenv
-
+import json
 from quiz.topics import extract_topics
 from quiz.generator import generate_quiz
 from quiz.evaluator import change_difficulty
@@ -59,7 +59,25 @@ def create_interface():
         )
         def handle_url_submit(url_input):
             global dropdown_options, topics_dict
-            topics_dict = extract_topics(llm, url_input)
+            with open("data/raw/video.json","r") as f:
+                try:
+                    j = json.load(f)  # Try loading the JSON data
+                except json.JSONDecodeError:
+                    j = {} 
+                if url_input in j:
+                    print("Found in cache")
+                    topics_dict=j[url_input]
+                else:
+                    print("Not found in cache.Loading...")
+                    topics_dict = extract_topics(llm, url_input)
+            
+            j[url_input] = topics_dict
+
+            
+            with open("data/raw/video.json", "w") as f:
+                json.dump(j, f, indent=4)  
+
+            
             dropdown_options = list(topics_dict.keys())
             return gr.update(
                 choices=dropdown_options,
