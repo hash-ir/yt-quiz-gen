@@ -62,13 +62,14 @@ Example format:
 ]
 
 Keep in mind to use only the description to generate MCQs. 
-Generate a set of 5 questions at {difficulty} difficulty level. 
+Generate a set of 5 questions.
+These are the feedback based on user performance,adapt generated MCQs accordingly:{adaptive_feedback}
 Remove the preamble and ensure your output is valid JSON.
 """
 
 
-def generate_quiz(llm, topic: str, desc: str, current_difficulty: str):
-    prompt = QUIZ_PROMPT.format(topic=topic, desc=desc, difficulty=current_difficulty)
+def generate_quiz(llm, topic: str, desc: str, adaptive_feedback: str):
+    prompt = QUIZ_PROMPT.format(topic=topic, desc=desc, adaptive_feedback=adaptive_feedback)
     response = llm.complete(prompt)
 
     try:
