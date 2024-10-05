@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCQ Generator</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* Custom styles for the selected topics display */
+        .selected-topics {
+            margin-top: 15px;
+        }
+
+        .scrollable-menu {
+            max-height: 150px;
+            /* Set max height */
+            overflow-y: auto;
+            /* Enable vertical scroll */
+        }
+
+        .dropdown-menu {
+            padding: 10px;
+            /* Optional padding for better visuals */
+        }
+    </style>
+</head>
+
+<body class="bg-light">
+    <div class="container mt-5">
+        <h1 class="text-center">Generate MCQs from URL</h1>
+
+        <!-- Form to Input URL -->
+        <form id="url-form" class="mb-4">
+            <div class="mb-3">
+                <label for="url" class="form-label">Enter URL</label>
+                <input type="url" class="form-control" id="url" placeholder="Enter URL" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Submit</button>
+        </form>
+
+        <!-- Div for topics selection (populated after URL submission) -->
+        <div id="topics-container" class="mb-4" style="display:none;">
+            <h3>Select Topics</h3>
+            <form id="topics-form">
+                <div id="topics-dropdown" class="dropdown">
+                    <button type="button" class="btn btn-secondary dropdown-toggle" id="dropdownMenuButton"
+                        data-bs-toggle="dropdown" aria-expanded="false">
+                        Select Topics
+                    </button>
+                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                        <div class="scrollable-menu">
+                            <div id="topics-list" class="form-group">
+                                <!-- Checkboxes will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary mt-3">Generate MCQs</button>
+            </form>
+        </div>
+        <!-- Div for MCQs (populated after topics submission) -->
+        <div id="mcq-container" class="mb-4" style="display:none;">
+            <h3>Answer the following questions</h3>
+            <form id="mcq-form">
+                <div id="mcq-list" class="form-group"></div>
+                <button type="submit" id="submit-btn" class="btn btn-primary mt-3">Submit</button>
+                <button type="button" id="end-quiz-btn" class="btn btn-danger mt-3">End Quiz</button>
+            </form>
+        </div>
+
+
+        <!-- Result Container -->
+        <div id="result-container" class="mb-4" style="display:none;">
+            <h3>Results</h3>
+            <div id="result-content"></div>
+            <button id="generate-more-btn" class="btn btn-primary mt-3">Generate More MCQs</button>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS and jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // URL form submission
+        $('#url-form').submit(function (e) {
+            e.preventDefault();
+            const url = $('#url').val();
+
+            // Send URL to backend to generate topics
+            $.post("/generate_topics", { url: url }, function (data) {
+                const topics = data.topics;
+                $('#topics-list').empty();
+                topics.forEach((topic) => {
+                    $('#topics-list').append(`
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="${topic}" id="${topic}">
+                            <label class="form-check-label" for="${topic}">
+                                ${topic}
+                            </label>
+                        </div>
+                    `);
+                });
+                $('#topics-container').show();
+            });
+        });
+
+        // Topics form submission
+        $('#topics-form').submit(function (e) {
+            e.preventDefault();
+            const selectedTopics = [];
+
+            // Gather selected topics from checkboxes
+            $('#topics-list input:checked').each(function () {
+                selectedTopics.push($(this).val());
+            });
+
+            // Send selected topics to backend as JSON
+            $.ajax({
+                url: "/generate_mcq",
+                type: "POST",
+                contentType: "application/json",
+                data: JSON.stringify({ selectedTopics: selectedTopics }), // Send as JSON
+                success: function (data) {
+                    const mcqs = data.mcqs;
+                    $('#mcq-list').empty();
+                    mcqs.forEach((mcq, index) => {
+                        const optionsHtml = mcq.options.map((opt, i) => `
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="mcq${index}" id="mcq${index}opt${i}" value="${opt}">
+                                <label class="form-check-label" for="mcq${index}opt${i}">
+                                    ${opt}
+                                </label>
+                            </div>
+                        `).join('');
+                        $('#mcq-list').append(`
+                            <div class="mb-3">
+                                <p><strong>Q${index + 1}:</strong> ${mcq.question}</p>
+                                ${optionsHtml}
+                            </div>
+                        `);
+                    });
+
+                    // Disable all topic checkboxes after generating MCQs
+                    $('#topics-list input[type="checkbox"]').prop('disabled', true);
+                    // Optionally, show a message indicating topics are fixed
+                    $('#topics-container').append(`<p class="text-muted">Topics are now fixed for this session.</p>`);
+
+                    $('#mcq-container').show();
+                },
+                error: function (xhr, status, error) {
+                    console.error("Error generating MCQs:", error);
+                    alert("An error occurred while generating MCQs.");
+                }
+            });
+        });
+
+
+        let userResponses = [];  // Store the user responses here
+
+// Initial form submission setup for the "Submit" button
+function bindSubmitButton() {
+    $('#mcq-form').off('submit');  // Unbind any previous submit handlers to avoid duplicate actions
+    $('#mcq-form').submit(function (e) {
+        e.preventDefault();
+
+        userResponses = [];  // Reset user responses
+        const questions = [];
+
+        // Collect the user's answers
+        $('#mcq-list').children('div').each(function (index) {
+            const questionText = $(this).find('p').text();  // Get the question text
+            const selectedOption = $(this).find('input[type="radio"]:checked').val();  // Get the selected answer
+
+            if (selectedOption) {  // Only add if an option was selected
+                questions.push(questionText);
+                userResponses.push(selectedOption);  // Store selected answers
+            }
+        });
+
+        // Make sure all questions are answered
+        if (questions.length !== userResponses.length) {
+            alert("Please answer all the questions.");
+            return;
+        }
+
+        // Call the show_responses function to display feedback
+        $.ajax({
+            url: "/show_responses",  // Endpoint to show the quiz responses
+            type: "POST",
+            contentType: "application/json",
+            data: JSON.stringify({ user_answers: userResponses }),  // Send the user responses to the backend
+            success: function (data) {
+                const correctAnswers = data.correct_answers;  // Correct answers from backend
+                const descriptions = data.descriptions;       // Descriptions for each question
+                const userAnswers = data.user_answers;        // User's selected answers
+
+                // Display the feedback for each question
+                $('#mcq-list').children('div').each(function (index) {
+                    const selectedOption = userAnswers[index];
+                    const correctAnswer = correctAnswers[index];
+                    const description = descriptions[index];
+
+                    // Display correct/incorrect feedback
+                    if (selectedOption === correctAnswer) {
+                        // Correct answer - mark in green
+                        $(this).find('label[for="mcq' + index + 'opt' + userAnswers.indexOf(selectedOption) + '"]')
+                            .css('color', 'green');
+                        $(this).append(`<p class="text-success"><strong>Correct!</strong> ${description}</p>`);
+                    } else {
+                        // Incorrect answer - mark in red
+                        $(this).find('label[for="mcq' + index + 'opt' + userAnswers.indexOf(selectedOption) + '"]')
+                            .css('color', 'red');
+                        $(this).append(`<p class="text-danger"><strong>Incorrect.</strong> ${description}</p>`);
+                    }
+
+                    // Disable radio inputs after submission
+                    $(this).find('input[type="radio"]').prop('disabled', true);
+                });
+
+                // Change the "Submit" button to "Continue"
+                $('#submit-btn').text('Continue');
+                $('#submit-btn').off('click');  // Remove the submit action
+                $('#submit-btn').click(function () {
+                    handleContinue();  // Call the function to handle "Continue"
+                });
+            },
+            error: function (xhr, status, error) {
+                console.error("Error showing responses:", error);
+                alert("An error occurred while showing responses.");
+            }
+        });
+    });
+}
+
+// Function to handle "Continue" button click and request a new quiz
+function handleContinue() {
+    // Clear previous feedback and reset the form state
+    $('#mcq-list').empty();  // Clear previous questions and feedback
+    userResponses = [];      // Clear previous responses
+
+    $('#submit-btn').text('Submit');  // Change back to "Submit" for the next quiz
+    $('#submit-btn').off('click');    // Remove the continue action
+
+    // Call the adaptive_feedback function to generate new MCQs based on user performance
+    $.ajax({
+        url: "/adaptive_feedback",
+        type: "POST",
+        contentType: "application/json",
+        data: JSON.stringify({ user_answers: userResponses }),  // Send the stored user responses
+        success: function (data) {
+            const newMcqs = data.mcqs;  // Get new questions
+
+            // Append new questions to the form
+            newMcqs.forEach((mcq, index) => {
+                const optionsHtml = mcq.options.map((opt, i) => `
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="mcq${index}" id="mcq${index}opt${i}" value="${opt}">
+                        <label class="form-check-label" for="mcq${index}opt${i}">
+                            ${opt}
+                        </label>
+                    </div>
+                `).join('');
+                $('#mcq-list').append(`
+                    <div class="mb-3">
+                        <p><strong>Q${index + 1}:</strong> ${mcq.question}</p>
+                        ${optionsHtml}
+                    </div>
+                `);
+            });
+
+            // Make sure radio buttons are enabled for the new quiz
+            $('#mcq-list input[type="radio"]').prop('disabled', false);
+
+            // Rebind the submit button after loading new questions
+            bindSubmitButton();  // Rebind the submit action for the new quiz
+        },
+        error: function (xhr, status, error) {
+            console.error("Error generating new MCQs:", error);
+            alert("An error occurred while generating new MCQs.");
+        }
+    });
+}
+
+// Initial setup when the page loads
+$(document).ready(function() {
+    bindSubmitButton();  // Bind the initial submit button action
+});
+
+
+        // End Quiz button functionality
+        $('#end-quiz-btn').click(function () {
+            // Here, you can call a function to finalize results, or show the final report
+            alert("Quiz has ended. Final results can be generated.");
+            // You can also redirect to a results page or update the UI accordingly.
+        });
+
+        // Continue button to restart MCQ generation
+        $('#generate-more-btn').click(function () {
+            $('#result-container').hide();
+            $('#url-form')[0].reset();
+            $('#topics-container').hide();
+            $('#topics-list').empty(); // Clear topics list for the next round
+        });
+    </script>
+
+</body>
+
+</html>
