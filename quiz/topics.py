@@ -44,14 +44,14 @@ Remove the preamble and ensure your output is valid JSON.
 """
 
 
-def extract_topics(llm, url: str):
-    transcript = get_video_transcript(url, return_str=True)
-    if not transcript:
-        raise ValueError(f"Unable to retrieve transcript for url: {url}")
+def extract_topics(llm, transcript: str):
+    # transcript = get_video_transcript(url, return_str=True)
+    # if not transcript:
+    #     raise ValueError(f"Unable to retrieve transcript for url: {url}")
 
-    print(
-        f"Fetched transcript with {len(transcript)} characters, approx {len(transcript) // 4} tokens."
-    )
+    # print(
+    #     f"Fetched transcript with {len(transcript)} characters, approx {len(transcript) // 4} tokens."
+    # )
 
     prompt = TOPIC_PROMPT.format(transcript=transcript)
     response = llm.complete(prompt)
