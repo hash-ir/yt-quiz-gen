@@ -27,6 +27,7 @@ dropdown_options = []
 current_difficulty = "Medium"
 rounds = 0
 
+
 def create_interface():
     with gr.Blocks(theme=gr.themes.Default()) as interface:
         gr.Markdown("# YouTube Quiz Generator")
@@ -60,25 +61,23 @@ def create_interface():
         )
         def handle_url_submit(url_input):
             global dropdown_options, topics_dict
-            with open("data/raw/video.json","r") as f:
+            with open("data/raw/video.json", "r") as f:
                 try:
                     j = json.load(f)  # Try loading the JSON data
                 except json.JSONDecodeError:
-                    j = {} 
+                    j = {}
                 if url_input in j:
                     print("Found in cache")
-                    topics_dict=j[url_input]
+                    topics_dict = j[url_input]
                 else:
                     print("Not found in cache.Loading...")
                     topics_dict = extract_topics(llm, url_input)
-            
+
             j[url_input] = topics_dict
 
-            
             with open("data/raw/video.json", "w") as f:
-                json.dump(j, f, indent=4)  
+                json.dump(j, f, indent=4)
 
-            
             dropdown_options = list(topics_dict.keys())
             return gr.update(
                 choices=dropdown_options,
@@ -94,11 +93,13 @@ def create_interface():
             global quiz, topic
             topic = dropdown_selection
             topic_desc = topics_dict[topic]
-            quiz_adapter_response="This is the starting of quiz,so we don't have any previous feedback based on user performance,so generate questions randomly for now from the given topic"
-            quiz = generate_quiz(llm, dropdown_selection, topic_desc, quiz_adapter_response)
+            quiz_adapter_response = "This is the starting of quiz,so we don't have any previous feedback based on user performance,so generate questions randomly for now from the given topic"
+            quiz = generate_quiz(
+                llm, dropdown_selection, topic_desc, quiz_adapter_response
+            )
             questions = [item[0] for item in quiz]
             options = [item[1] for item in quiz]
-            
+
             radios = []
             for i in range(5):
                 radios.append(
@@ -117,19 +118,21 @@ def create_interface():
             global current_difficulty, rounds
             user_answers = questions
             correct_answers = [item[2] for item in quiz]
-            questions= [item[0] for item in quiz]
+            questions = [item[0] for item in quiz]
             options = [item[1] for item in quiz]
-            quiz_adapter_response=generate_quiz_adapter_summary(llm,questions,options,correct_answers,user_answers)
-            print("Quiz adapter response:",quiz_adapter_response)
+            quiz_adapter_response = generate_quiz_adapter_summary(
+                llm, questions, options, correct_answers, user_answers
+            )
+            print("Quiz adapter response:", quiz_adapter_response)
             score = 0
             for user_answer, correct_answer in zip(user_answers, correct_answers):
                 if user_answer == correct_answer:
                     score += 1
-            
+
             current_difficulty = change_difficulty(current_difficulty, score)
-            
+
             topic_desc = topics_dict[topic]
-            new_quiz = generate_quiz(llm, topic, topic_desc, quiz_adapter_response)  
+            new_quiz = generate_quiz(llm, topic, topic_desc, quiz_adapter_response)
             questions = [item[0] for item in new_quiz]
             options = [item[1] for item in new_quiz]
 
@@ -149,7 +152,7 @@ def create_interface():
             if rounds > 0:
                 quit_button_visible = True
 
-            return *radios, gr.update(visible=quit_button_visible)    
+            return *radios, gr.update(visible=quit_button_visible)
 
         @quit_button.click(inputs=questions, outputs=quiz_output)
         def handle_quiz_submit(*questions):
@@ -209,4 +212,4 @@ def create_interface():
 
 if __name__ == "__main__":
     interface = create_interface()
-    interface.launch(debug=True, show_error=True)
+    interface.launch(server_name="0.0.0.0", debug=True, show_error=True)
